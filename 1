@@ -1,0 +1,185 @@
+import paramiko
+import sys
+from openpyxl import Workbook  # 导入包
+#llimport time
+import xlwt,xlrd
+import datetime
+
+
+
+
+
+def read_sevrInfo():
+    wrokbook = xlrd.open_workbook('2.xlsx')
+    workbook1 = wrokbook.sheet_by_index(0)
+    num_rows = workbook1.nrows
+    raw_value_list = []
+    #print(num_rows)
+    num_cols = workbook1.ncols
+    #print(num_cols)
+    #print(wrokbook.sheet_names())
+    for i in range(num_rows):
+        raw_value = workbook1.row_values(i)
+        raw_value_list.append(raw_value)
+    return raw_value_list
+
+#a = read_sevrInfo()
+#print(next(a))
+#print(a.send(None))
+#print(a.send(None))
+
+
+def Login_server(hostip,passwd):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(hostname=hostip, port=10022, username='root', password=passwd)
+    return client
+    #client.close()
+    #stdin, stout, stderr = client.exec_command('date +%F')
+    #Date = stout.read().decode().replace("\n", "")
+    #print(Date)
+
+
+def get_info(s):
+    Info_Dict = {}
+    Info_List = []
+
+    stdin, stout, stderr = s.exec_command('free -m|grep Mem|awk -F "[ ]+" "{print \$2}"')
+    Mem_Total = stout.read().decode().replace("\n", "").strip('G')
+    stdin, stout, stderr = s.exec_command('free -m|grep Mem|awk -F "[ ]+" "{print \$4}"')
+    Mem_Free = stout.read().decode().replace("\n", "")
+    Mem_Total = float(Mem_Total)
+    Mem_Free = float(Mem_Free)
+    #Mem_Usage = Mem_Free + "/" + Mem_Total
+    Info_List.append('{:.2%}'.format((Mem_Total-Mem_Free)/Mem_Total))
+
+    #stdin, stout, stderr = s.exec_command('date +%F')
+    #Date = stout.read().decode().replace("\n", "")
+    #Info_List.append(Date)
+    #stdin, stout, stderr = s.exec_command('ifconfig bond0|grep -w inet |awk -F "[ ]+" "{print \$3}"')
+    #hostip = stout.read().decode().replace("\n", "")
+    #Info_List.append(hostip)
+    #Info_List.append('√')
+    #Info_List.append('√')
+    #Info_List.append('')
+
+    stdin, stout, stderr = s.exec_command('top -bi -n 1|grep  Cpu|awk -F "[ ]+" "{print \$8}"')
+    Cpu_usage = stout.read().decode().replace("\n", "")
+    Info_List.append(str(Cpu_usage) + '%')
+
+
+
+    stdin, stout, stderr = s.exec_command('df -h|grep -w / |awk -F "[ ]+" "{print \$5}"')
+    SystemDiskUsage = stout.read().decode().replace("\n", "")
+    Info_List.append(SystemDiskUsage)
+
+    stdin, stout, stderr = s.exec_command('df -h|grep data|awk -F "[ ]+" "{print \$5}"')
+    DataDiskUsage = stout.read().decode().replace("\n", "")
+    Info_List.append(DataDiskUsage)
+
+    stdin, stout, stderr = s.exec_command('free -m|grep Swap|awk -F "[ ]+" "{print \$2}"')
+    Swap_Total = stout.read().decode().replace("\n", "").strip('G')
+    stdin, stout, stderr = s.exec_command('free -m|grep Swap|awk -F "[ ]+" "{print \$4}"')
+    Swap_Free = stout.read().decode().replace("\n", "")
+    Swap_Total = float(Swap_Total)
+    Swap_Free = float(Swap_Free)
+    #Mem_Usage = Mem_Free + "/" + Mem_Total
+    Info_List.append('{:.2%}'.format((Swap_Total-Swap_Free)/Swap_Total))
+    Info_List.append("/")
+    #nfo_List.append('√')
+
+    stdin, stout, stderr = s.exec_command('ss -an|wc -l')
+    Con_num = stout.read().decode().replace("\n", "")
+    Info_List.append(Con_num)
+
+    Info_List.append('√')
+    return Info_List
+
+def write_sevrInfo(info_list):
+    now = str(datetime.datetime.now().strftime('%Y%m%d%H%M%S'))
+    #global i
+    #i = i + 1
+    ruichi_book = xlwt.Workbook()
+    #inspect_book = xlrd.open_workbook('C:/Users/27060/Desktop/Inspection_table.xls')
+    #sheet1 = inspect_book.(0)
+    #sheet1.write(2,1,0)
+    #for j in range(len(info_list)):
+    #    print(i,j)
+    #    sheet1.write(i,j,info_list[j])
+    style = xlwt.XFStyle()
+    pattern = xlwt.Pattern()
+    pattern.pattern = xlwt.Pattern.SOLID_PATTERN
+    pattern.pattern_fore_colour = 3
+    style.pattern = pattern
+    font = xlwt.Font()
+    font.height = 200
+    font.name = "Calibri"
+    style.font = font
+
+    style1 = xlwt.XFStyle()
+    pattern1 = xlwt.Pattern()
+    pattern1.pattern = xlwt.Pattern.SOLID_PATTERN
+    pattern1.pattern_fore_colour = 5
+    style1.pattern = pattern1
+
+    borders = xlwt.Borders()
+    borders.left = xlwt.Borders.THIN
+    borders.right = xlwt.Borders.THIN
+    borders.top = xlwt.Borders.THIN
+    borders.bottom = xlwt.Borders.THIN
+
+    style1.borders = borders
+
+    sheet1 = ruichi_book.add_sheet('sheetA',cell_overwrite_ok=True)
+    title = ["序号", "服务器", "内存使用率", "cpu负载", "系统磁盘空间使用率","据磁盘空间使用率 ","swap空间使用率","进程ffmepg"
+             "日志检查", "连接数并发数检查","备份情况检查"]
+    server_title = ["湖南主控直播服务器251","重庆主控直播转码服务器20","湖南主控服务器236",
+                    "湖南主控服务器237","湖南主控服务器247","重庆主控服务器23",
+                    "重庆主控服务器24","湖南主控服务器25","湖南主控数据库(主234)",
+                    "重庆主控数据库(主28)","BOSS系统数据库(主215)"]
+    seq_num = ['1','2','3','4','5','6','7','8','9','10','11']
+    sheet1.col(1).width = 256 * 30
+    for i in range(len(title)):
+        sheet1.write(0,i,title[i],style)
+        sheet1.col(i+2).width = 256 * 20
+
+    for i in range(len(seq_num)):
+        sheet1.write(i+1,0,seq_num[i])
+
+    for i in range(len(server_title)):
+        sheet1.write(i+1,1,server_title[i],style1)
+
+
+    for i in range(len(info_list)):
+        for j in range(len(info_list[i])):
+            sheet1.write(i+1, j+2, info_list[i][j])
+    #ruichi_book.save('C:/Users/27060/Desktop/{0}.xls'.format(now))
+    ruichi_book.save(now + '.xls')
+
+def last():
+    re_sev = read_sevrInfo()
+    n = 0
+    #i = 0
+    total_info = []
+    for i in range(len(re_sev)):
+        host_info = re_sev[i]
+        if host_info is not None:
+            #print(host_info)
+            try:
+                a = Login_server(host_info[0],host_info[1][3:])
+            except TimeoutError:
+                print("连接失败")
+            else:
+                #print(a)
+                single_info = get_info(a)
+                a.close()
+                total_info.append(single_info)
+                #write_sevrInfo(total)
+                n = n + 1
+            print(total_info)
+    write_sevrInfo(total_info)
+
+
+
+if __name__ ==  '__main__':
+    last()
